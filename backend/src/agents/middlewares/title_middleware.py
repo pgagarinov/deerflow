@@ -67,8 +67,12 @@ class TitleMiddleware(AgentMiddleware[TitleMiddlewareState]):
 
         try:
             response = model.invoke(prompt)
-            # Ensure response content is string
-            title_content = str(response.content) if response.content else ""
+            # Ensure response content is string (Bedrock returns list of content blocks)
+            content = response.content
+            if isinstance(content, list):
+                title_content = " ".join(block.get("text", "") if isinstance(block, dict) else str(block) for block in content).strip()
+            else:
+                title_content = str(content) if content else ""
             title = title_content.strip().strip('"').strip("'")
             # Limit to max characters
             return title[: config.max_chars] if len(title) > config.max_chars else title

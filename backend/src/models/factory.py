@@ -37,6 +37,16 @@ def create_chat_model(name: str | None = None, thinking_enabled: bool = False, *
             "supports_vision",
         },
     )
+    # Map 'model' -> 'model_id' for providers that use model_id (e.g. ChatBedrockConverse)
+    if "model" in model_settings_from_config and hasattr(model_class, "model_fields") and "model_id" in model_class.model_fields and "model" not in model_class.model_fields:
+        model_settings_from_config["model_id"] = model_settings_from_config.pop("model")
+    # Convert read_timeout/connect_timeout into a botocore Config for Bedrock providers
+    if "read_timeout" in model_settings_from_config or "connect_timeout" in model_settings_from_config:
+        from botocore.config import Config as BotoConfig
+        model_settings_from_config["config"] = BotoConfig(
+            read_timeout=model_settings_from_config.pop("read_timeout", 120),
+            connect_timeout=model_settings_from_config.pop("connect_timeout", 10),
+        )
     if thinking_enabled and model_config.when_thinking_enabled is not None:
         if not model_config.supports_thinking:
             raise ValueError(f"Model {name} does not support thinking. Set `supports_thinking` to true in the `config.yaml` to enable thinking.") from None
@@ -45,7 +55,9 @@ def create_chat_model(name: str | None = None, thinking_enabled: bool = False, *
         kwargs.update({"extra_body": {"thinking": {"type": "disabled"}}})
         kwargs.update({"reasoning_effort": "minimal"})
     if not model_config.supports_reasoning_effort:
-        kwargs.update({"reasoning_effort": None})
+        kwargs.pop("reasoning_effort", None)
+    # Remove None-valued kwargs to avoid passing unsupported params to providers like Bedrock
+    kwargs = {k: v for k, v in kwargs.items() if v is not None}
     model_instance = model_class(**kwargs, **model_settings_from_config)
 
     if is_tracing_enabled():
