@@ -47,10 +47,13 @@ def load_agent_config(name: str | None) -> AgentConfig | None:
     config_file = agent_dir / "config.yaml"
 
     if not agent_dir.exists():
-        raise FileNotFoundError(f"Agent directory not found: {agent_dir}")
+        # Auto-create missing agent directory with minimal config
+        logger.info(f"Auto-creating missing agent directory: {agent_dir}")
+        agent_dir.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(f"name: {name}\n", encoding="utf-8")
 
     if not config_file.exists():
-        raise FileNotFoundError(f"Agent config not found: {config_file}")
+        config_file.write_text(f"name: {name}\n", encoding="utf-8")
 
     try:
         with open(config_file, encoding="utf-8") as f:
